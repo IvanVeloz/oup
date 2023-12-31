@@ -55,7 +55,18 @@ entity neorv32_test_setup_bootloader is
     gpio_i      : in  std_ulogic_vector(7 downto 0); -- parallel input
     -- UART0 --
     uart0_txd_o : out std_ulogic; -- UART0 send data
-    uart0_rxd_i : in  std_ulogic  -- UART0 receive data
+    uart0_rxd_i : in  std_ulogic; -- UART0 receive data
+    -- WISHBONE --
+    wb_tag_o    : out std_ulogic_vector(02 downto 0); -- request tag
+    wb_adr_o    : out std_ulogic_vector(31 downto 0); -- address
+    wb_dat_i    : in  std_ulogic_vector(31 downto 0) := (others => 'U'); -- read data
+    wb_dat_o    : out std_ulogic_vector(31 downto 0); -- write data
+    wb_we_o     : out std_ulogic; -- read/write
+    wb_sel_o    : out std_ulogic_vector(03 downto 0); -- byte enable
+    wb_stb_o    : out std_ulogic; -- strobe
+    wb_cyc_o    : out std_ulogic; -- valid cycle
+    wb_ack_i    : in  std_ulogic := 'L'; -- transfer acknowledge
+    wb_err_i    : in  std_ulogic := 'L'  -- transfer error
   );
 end entity;
 
@@ -83,6 +94,8 @@ begin
     -- Internal Data memory --
     MEM_INT_DMEM_EN              => true,              -- implement processor-internal data memory
     MEM_INT_DMEM_SIZE            => MEM_INT_DMEM_SIZE, -- size of processor-internal data memory in bytes
+    -- External memory interface (WISHBONE) --
+    MEM_EXT_EN                   => true,
     -- Processor peripherals --
     IO_GPIO_NUM                  => 8,                 -- number of GPIO input/output pairs (0..64)
     IO_MTIME_EN                  => true,              -- implement machine system timer (MTIME)?
@@ -97,7 +110,18 @@ begin
     gpio_i      => con_gpio_i,  -- parallel input
     -- primary UART0 (available if IO_GPIO_NUM > 0) --
     uart0_txd_o => uart0_txd_o, -- UART0 send data
-    uart0_rxd_i => uart0_rxd_i  -- UART0 receive data
+    uart0_rxd_i => uart0_rxd_i, -- UART0 receive data
+    -- WISHBONE interface (available if MEM_EXT_EN = TRUE)
+    wb_tag_o    => wb_tag_o,    -- request tag
+    wb_adr_o    => wb_adr_o,    -- address
+    wb_dat_i    => wb_dat_i,    -- read data
+    wb_dat_o    => wb_dat_o,    -- write data
+    wb_we_o     => wb_we_o,     -- read/write
+    wb_sel_o    => wb_sel_o,    -- byte enable
+    wb_stb_o    => wb_stb_o,    -- strobe
+    wb_cyc_o    => wb_cyc_o,    -- valid cycle
+    wb_ack_i    => wb_ack_i,    -- transfer acknowledge
+    wb_err_i    => wb_err_i     -- transfer error
   );
 
   -- GPIO output --

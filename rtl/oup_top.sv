@@ -61,16 +61,26 @@ wire        clk_cpu_i;
 wire        rstn_i;
 wire [7:0]  cpu_gpio_o;
 wire [7:0]  cpu_gpio_i;
-wire uart0_txd_o, uart0_txd_con_i;
-wire uart0_rxd_i, uart0_rxd_con_o;
+wire        uart0_txd_o;
+wire        uart0_rxd_i;
+wire [2:0]  wb_tag_m2s;  // Tags, MASTER to slave
+wire [31:0] wb_adr;
+wire [31:0] wb_dat_s2m;  // Data, SLAVE to MASTER
+wire [31:0] wb_dat_m2s;  // Data, MASTER to SLAVE
+wire        wb_we;
+wire [3:0]  wb_sel;
+wire        wb_stb;
+wire        wb_cyc;
+wire        wb_ack;
+wire        wb_err;
 
 assign clk_cpu_i        = MAX10_CLK1_50;    // 50MHz clock
 assign rstn_i           = SW[9];            // Reset switch, active low
 assign cpu_gpio_i[7:0]  = SW[7:0];          // General purpose switches
 assign LEDR[7:0]        = cpu_gpio_o[7:0];  // LED row
-//assign uart0_rxd_i      = uart0_rxd_con_o;  // UART RX signal (3.3V)
-//assign uart0_txd_con_i  = uart0_txd_o;      // UART TX signal (3.3V)
+assign LEDR[9:8]        = 2'bzz;            // LED row
 
+// Dev board IO //
 gpio_connector gpio_con (GPIO);
 arduino_connector arduino_con (
   .ARDUINO_IO(ARDUINO_IO), 
@@ -78,13 +88,46 @@ arduino_connector arduino_con (
   .uart0_txd_o_i(uart0_txd_o),
   .uart0_rxd_i_o(uart0_rxd_i)
 );
+
+// The NEORV32 soft-processor
 neorv32_test_setup_bootloader neorv32_processor (
   .clk_i(clk_cpu_i),
   .rstn_i(rstn_i),
   .gpio_o(cpu_gpio_o[7:0]),
   .gpio_i(cpu_gpio_i[7:0]),
   .uart0_txd_o(uart0_txd_o),
-  .uart0_rxd_i(uart0_rxd_i)
+  .uart0_rxd_i(uart0_rxd_i),
+  .wb_tag_o(wb_tag_m2s[2:0]),
+  .wb_adr_o(wb_adr[31:0]),
+  .wb_dat_i(wb_dat_s2m[31:0]),
+  .wb_dat_o(wb_dat_m2s[31:0]),
+  .wb_we_o(wb_we),
+  .wb_sel_o(wb_sel[3:0]),
+  .wb_stb_o(wb_stb),
+  .wb_cyc_o(wb_cyc),
+  .wb_ack_i(wb_ack),
+  .wb_err_i(wb_err)
+);
+
+// The OUP wishbone interface
+oup_wishbone oup_wb (
+  .clk_i(clk_cpu_i),
+  .dat_i(wb_dat_m2s[31:0]),
+  .dat_o(wb_dat_s2m[31:0]),
+  .rst_i(rstn_i),
+  .tgs_i(wb_tag_m2s[2:0]),
+  .tgs_o(),
+  .ack_o(wb_ack),
+  .adr_i(wb_adr[31:0]),
+  .cyc_i(wb_cyc),
+  .err_o(wb_err),
+  .lock_i(),
+  .rty_o(),
+  .sel_i(wb_sel[3:0]),
+  .stb_i(wb_stb),
+  .tga_i(),
+  .tgc_i(),
+  .we_i(wb_we)
 );
 
 // High-Z unused IO //
@@ -136,8 +179,8 @@ module arduino_connector(
 );
   wire    [15:0]  floating = {16{1'bz}};
 
-  assign ARDUINO_IO[1]    = uart0_txd_o_i;    // Physical pin is output
-  assign uart0_rxd_i_o    = ARDUINO_IO[0];    // Physical pin is input
+  assign ARDUINO_IO[1]    = uart0_txd_o_i;    // Physical pin is output (3.3V)
+  assign uart0_rxd_i_o    = ARDUINO_IO[0];    // Physical pin is input (3.3V)
   assign ARDUINO_IO[15:2] = floating[15:2];
 
 endmodule
