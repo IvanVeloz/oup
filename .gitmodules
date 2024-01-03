@@ -1,3 +1,6 @@
 [submodule "neorv32"]
-	path = neorv32
+	path = dependencies/neorv32
 	url = https://github.com/stnolting/neorv32.git
+[submodule "oup-wishbone"]
+	path = dependencies/oup-wishbone
+	url = https://github.com/IvanVeloz/oup-wishbone.git
