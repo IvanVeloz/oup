@@ -1,0 +1,40 @@
+# text files with either LF or CRLF depending on platform (Unix/Linux, and Windows respectively)
+* text=auto
+# text files that are expected to be used by Linux or Windows Subsystem for Linux
+* linux eol=lf
+* windows eol=crlf
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+.git* text
+README text
+TODO text
+*.md text
+*.wb text
+*.c text
+*.h text
+*.v text
+*.vhd text
+*.vhdl text
+*.htm text
+*.html text
+*.tcl text
+
+# Declare files that will always have LF line endings
+Makefile linux
+tools/wishbone-gen/Makefile linux
+tools/wishbone-gen/squishy linux
+tools/wishbone-gen/squish linux
+tools/wishbone-gen/wbgen2 linux
+*.lua linux
+*.py linux
+*.sh linux
+
+# Declare files that will always have CRLF line endings
+*.bat
+*.ps1
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.exe binary
