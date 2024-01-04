@@ -46,6 +46,7 @@ if {$make_assignments} {
 	set_global_assignment -name LAST_QUARTUS_VERSION "23.1std.0 Lite Edition"
 	set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 	set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/oup_top.sv
+	set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/core/oup_sm_ulpi_syncmode.sv
 	set_global_assignment -name VHDL_FILE ../rtl/oup_neorv32top.vhd
 	set_global_assignment -name SDC_FILE ../rtl/oup_constraints.sdc
 	set_global_assignment -name VERILOG_FILE "../dependencies/oup-wishbone/rtl/oup_wishbone.v"
