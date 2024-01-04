@@ -21,4 +21,5 @@ Then on Linux or Windows, create a new Quartus Prime project from a TCL file as 
 2. Locate the TCL console.
 3. Navigate to the `quartus` directory by typing `cd path/to/oup/quartus`.
 4. Create the project by typing `source oup.tcl`. This will execute the `oup.tcl` script.
+    * At this point Quartus may complain about you not having Cyclone V support installed, and will ask you if you want to remove the current assignemts. Select "No".
 5. Open the project you just created by clicking File > Open Project.
