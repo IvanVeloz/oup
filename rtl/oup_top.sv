@@ -1,4 +1,4 @@
-module oup_top(
+module oup(
 
 	//////////// CLOCK //////////
 	input 		          		ADC_CLK_10,
@@ -110,24 +110,20 @@ neorv32_test_setup_bootloader neorv32_processor (
 );
 
 // The OUP wishbone interface
-oup_wishbone oup_wb (
-  .clk_i(clk_cpu_i),
-  .dat_i(wb_dat_m2s[31:0]),
-  .dat_o(wb_dat_s2m[31:0]),
-  .rst_i(rstn_i),
-  .tgs_i(wb_tag_m2s[2:0]),
-  .tgs_o(),
-  .ack_o(wb_ack),
-  .adr_i(wb_adr[31:0]),
-  .cyc_i(wb_cyc),
-  .err_o(wb_err),
-  .lock_i(),
-  .rty_o(),
-  .sel_i(wb_sel[3:0]),
-  .stb_i(wb_stb),
-  .tga_i(),
-  .tgc_i(),
-  .we_i(wb_we)
+oup_wishbone oup_wishbone (
+  .clk_sys_i(clk_cpu_i),
+  .wb_dat_i(wb_dat_m2s[31:0]),
+  .wb_dat_o(wb_dat_s2m[31:0]),
+  .rst_n_i(rstn_i),
+  .wb_ack_o(wb_ack),
+  .wb_adr_i(wb_adr[31:0]),
+  .wb_cyc_i(wb_cyc),
+  .wb_err_o(wb_err),
+  .wb_sel_i(wb_sel[3:0]),
+  .wb_stb_i(wb_stb),
+  .wb_we_i(wb_we),
+  .wb_rty_o(),      // Empty because neither NEORV32 nor wbgen2 implement it.
+  .wb_stall_o()     // Empty because we're not using a pipelined master.
 );
 
 // High-Z unused IO //
