@@ -1,3 +1,7 @@
+`ifndef ULPI_EXTERNAL_RESET
+  `define ULPI_EXTERNAL_RESET 1
+`endif
+
 module oup(
 
 	//////////// CLOCK //////////
@@ -110,8 +114,8 @@ neorv32_test_setup_bootloader neorv32_processor (
 );
 
 // The OUP wishbone interface
-oup_wishbone oup_wishbone (
-  .clk_sys_i(clk_cpu_i),
+oup_device_controller oup_device (
+  .wb_clk_i(clk_cpu_i),
   .wb_dat_i(wb_dat_m2s[31:0]),
   .wb_dat_o(wb_dat_s2m[31:0]),
   .rst_n_i(rstn_i),
@@ -123,7 +127,13 @@ oup_wishbone oup_wishbone (
   .wb_stb_i(wb_stb),
   .wb_we_i(wb_we),
   .wb_rty_o(),      // Empty because neither NEORV32 nor wbgen2 implement it.
-  .wb_stall_o()     // Empty because we're not using a pipelined master.
+  .wb_stall_o(),    // Empty because we're not using a pipelined master.
+  .ulpi_rst_o(),    // TODO
+  .ulpi_clk_i(),    // TODO
+  .ulpi_data_io(),  // TODO [7:1]
+  .ulpi_dir_i(),    // TODO
+  .ulpi_stp_o(),    // TODO
+  .ulpi_nxt_i()     // TODO
 );
 
 // High-Z unused IO //
