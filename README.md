@@ -8,9 +8,9 @@ Developed on the Terasic DE-10-Lite development board, that uses an Intel MAX-10
 To initialize and use the repo, do the following on an Ubuntu Linux command line (you can use WSL on Windows):
 ```
 sudo apt-get install make git lua5.1
-git clone https://github.com/IvanVeloz/oup-wishbone
+git clone https://github.com/IvanVeloz/oup
 # (or substitute the URL if you're not getting this from my GitHub repo)
-cd oup-wishbone
+cd oup
 git submodule update --init --recursive
 cd dependencies/oup-wishbone
 make
