@@ -2,13 +2,24 @@
    `define ULPI_EXTERNAL_RESET 1
 `endif
 
-module oup_device_controller (
+module oup_device_controller #(
+   parameter WB_BASE_ADDRESS = 32'hF0000000, // WB_WIDTH is determined by the
+   parameter WB_WIDTH = 1                    // width of the wb.wb_adr_i vector
+                                             // E.g. [0:0] = 1 and [15:0] = 16
+
+   // NOTE: the base addresses must be naturally aligned to their width.
+   // That is, a buffer of width w must have a base address of n*(2^w) where
+   // n is a natural number. In other words, the base address should be a
+   // multiple of the Wishbone address space's size.
+   // See NEORV32 datasheet, figure 2 NEORV32 Processor Address Space for
+   // the memory layout.
+) (
    // General signals 
    input              rst_n_i,
 
    // Wishbone interface signals
    input              wb_clk_i,
-   input       [0:0]  wb_adr_i,
+   input       [31:0] wb_adr_i,
    input       [31:0] wb_dat_i,
    output      [31:0] wb_dat_o,
    input              wb_cyc_i,
@@ -30,6 +41,13 @@ module oup_device_controller (
    output             ulpi_stp_o,
    input              ulpi_nxt_i
 );
+
+   wire        [31:0] wb_adr_mapped;
+
+   assign wb_adr_mapped = {
+      WB_BASE_ADDRESS[31:WB_WIDTH],
+      wb_adr_i[WB_WIDTH-1:0]
+   };
 
    oup_wishbone wb (
       .clk_sys_i(wb_clk_i),
