@@ -66,7 +66,7 @@ module oup_device_controller #(
       .wb_stall_o(wb_stall_o),
       .oup_ins_instruction_o(),   //7:0
       .oup_ins_exec_o(),
-      .oup_ins_reset_o(),
+      .oup_ins_reset_o(oup_phyreg_reset),
       .oup_ins_exec_done_i(),
       .oup_ins_exec_aborted_i(),
       .oup_phyreg_addr_o(), //7:0
