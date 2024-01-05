@@ -46,6 +46,7 @@ if {$make_assignments} {
 	set_global_assignment -name LAST_QUARTUS_VERSION "23.1std.0 Lite Edition"
 	set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 	set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/oup_top.sv
+	set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/oup_device_controller.sv
 	set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/core/oup_sm_ulpi_syncmode.sv
 	set_global_assignment -name VHDL_FILE ../rtl/oup_neorv32top.vhd
 	set_global_assignment -name SDC_FILE ../rtl/oup_constraints.sdc
@@ -97,7 +98,6 @@ if {$make_assignments} {
 	set_global_assignment -name VHDL_FILE ../dependencies/neorv32/rtl/core/neorv32_bootloader_image.vhd -library neorv32
 	set_global_assignment -name VHDL_FILE ../dependencies/neorv32/rtl/core/neorv32_boot_rom.vhd -library neorv32
 	set_global_assignment -name VHDL_FILE ../dependencies/neorv32/rtl/core/neorv32_application_image.vhd -library neorv32
-	set_global_assignment -name VERILOG_FILE ../rtl/oup_device_controller.sv
 	set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 	set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 	set_global_assignment -name TIMING_ANALYZER_DO_REPORT_TIMING ON

@@ -91,7 +91,10 @@ assign LEDR[7:0]        = cpu_gpio_o[7:0];  // LED row
 assign LEDR[9:8]        = 2'bzz;            // LED row
 
 // Dev board IO //
-gpio_connector gpio_con (GPIO);
+gpio_connector gpio_con (
+  .GPIO(GPIO),
+  .ulpi_rst_o_i(ulpi_rst)
+);
 arduino_connector arduino_con (
   .ARDUINO_IO(ARDUINO_IO), 
   .ARDUINO_RESET_N(ARDUINO_RESET_N), 
@@ -134,7 +137,7 @@ oup_device_controller oup_device (
   .wb_we_i(wb_we),
   .wb_rty_o(),      // Empty because neither NEORV32 nor wbgen2 implement it.
   .wb_stall_o(),    // Empty because we're not using a pipelined master.
-  .ulpi_rst_o(),    // TODO
+  .ulpi_rst_o(ulpi_rst),
   .ulpi_clk_i(),    // TODO
   .ulpi_data_io(),  // TODO [7:1]
   .ulpi_dir_i(),    // TODO
@@ -184,7 +187,8 @@ module gpio_connector(
 );
   wire    [35:0]  floating = {36{1'bz}};
 
-  assign GPIO[35:0]   = floating[35:0];
+  assign GPIO[35:1] = floating[35:1];
+  assign GPIO[0]    = ulpi_rst_o_i;
 
 endmodule
 

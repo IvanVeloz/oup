@@ -42,6 +42,7 @@ module oup_device_controller #(
    input              ulpi_nxt_i
 );
 
+   wire               oup_phyreg_reset;
    wire        [31:0] wb_adr_mapped;
 
    assign wb_adr_mapped = {
@@ -65,7 +66,7 @@ module oup_device_controller #(
       .wb_stall_o(wb_stall_o),
       .oup_ins_instruction_o(),   //7:0
       .oup_ins_exec_o(),
-      .oup_ins_reset_o(),
+      .oup_ins_reset_o(oup_phyreg_reset),
       .oup_ins_exec_done_i(),
       .oup_ins_exec_aborted_i(),
       .oup_phyreg_addr_o(), //7:0
@@ -77,7 +78,7 @@ module oup_device_controller #(
       .oup_phyreg_rx_cmd_byte_i()   //7:0
    );
 
-   assign ulpi_rst_o = !rst_n_i;
+   assign ulpi_rst_o = !rst_n_i | oup_phyreg_reset;
 
 	// TODO: instantiate ULPI state machine
 	
