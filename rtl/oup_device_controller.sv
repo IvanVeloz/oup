@@ -31,6 +31,8 @@ module oup_device_controller (
    input              ulpi_nxt_i
 );
 
+   wire oup_phyreg_reset;
+
    oup_wishbone wb (
       .clk_sys_i(wb_clk_i),
       .wb_dat_i(wb_dat_i[31:0]),
@@ -59,7 +61,7 @@ module oup_device_controller (
       .oup_phyreg_rx_cmd_byte_i()   //7:0
    );
 
-   assign ulpi_rst_o = !rst_n_i;
+   assign ulpi_rst_o = !rst_n_i | oup_phyreg_reset;
 
 	// TODO: instantiate ULPI state machine
 	
