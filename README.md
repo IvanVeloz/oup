@@ -24,4 +24,4 @@ After this, on Linux or Windows, create a new Quartus Prime project from the `ou
     * At this point Quartus may complain about you not having Cyclone V support installed, and will ask you if you want to remove the current assignemts. Select "No".
 5. Open the project you just created by clicking File > Open Project.
 
-To use the included software, first download a RISCV toolchain for the NEORV32 processor, such as (this)[https://github.com/stnolting/riscv-gcc-prebuilt] and add it to your system's `PATH` variable (just follow the installation instructions in the link above).
+To use the included software, first download a RISCV toolchain for the NEORV32 processor, such as [this](https://github.com/stnolting/riscv-gcc-prebuilt) and add it to your system's `PATH` variable (just follow the installation instructions in the link above).
