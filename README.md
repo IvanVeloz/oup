@@ -12,11 +12,9 @@ git clone https://github.com/IvanVeloz/oup
 # (or substitute the URL if you're not getting this from my GitHub repo)
 cd oup
 git submodule update --init --recursive
-# (note this downloads and stores about 7GB due to the RISCV toolchain)
 cd dependencies/oup-wishbone
 make
 ```
-Note that `git submodule update --init --recursive` pulls about 7GB of files from the RISC-V GNU toolchain. If you already have this, you can instead initialize the other submodules individually.
 
 After this, on Linux or Windows, create a new Quartus Prime project from the `oup.tcl` script as follows:
 1. Open Quartus Prime (don't create or open a project).
@@ -25,3 +23,5 @@ After this, on Linux or Windows, create a new Quartus Prime project from the `ou
 4. Create the project by typing `source oup.tcl`. This will execute the `oup.tcl` script.
     * At this point Quartus may complain about you not having Cyclone V support installed, and will ask you if you want to remove the current assignemts. Select "No".
 5. Open the project you just created by clicking File > Open Project.
+
+To use the included software, first download a RISCV toolchain for the NEORV32 processor, such as (this)[https://github.com/stnolting/riscv-gcc-prebuilt] and add it to your system's `PATH` variable (just follow the installation instructions in the link above).
