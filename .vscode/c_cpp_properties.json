@@ -1,0 +1,13 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/dependencies/neorv32/sw/lib/include",
+                "${workspaceFolder}/dependencies/oup-wishbone/sw"
+            ]
+        }
+    ],
+    "version": 4
+}
