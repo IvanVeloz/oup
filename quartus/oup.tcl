@@ -104,7 +104,7 @@ if {$make_assignments} {
 	set_global_assignment -name DEVICE_FILTER_PACKAGE FBGA
 	set_global_assignment -name DEVICE_FILTER_PIN_COUNT 484
 	set_global_assignment -name PROJECT_IP_REGENERATION_POLICY ALWAYS_REGENERATE_IP
-	set_global_assignment -name TOP_LEVEL_ENTITY oup_top
+	set_global_assignment -name TOP_LEVEL_ENTITY oup
 	set_global_assignment -name DEVICE 10M50DAF484C7G
 	set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 256
 	set_global_assignment -name EDA_SIMULATION_TOOL "Questa Intel FPGA (SystemVerilog)"
