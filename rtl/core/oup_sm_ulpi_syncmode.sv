@@ -7,20 +7,20 @@ module oup_sm_ulpi_syncmode(
    input             ulpi_dir_i,
    output            ulpi_stp_o,
    input             ulpi_nxt_i,
-   input       [7:0] instruction_i,		// Must be held constant until instruction execution is done.
-   input             exec_i,				// To execute instruction, assert for one cycle.
-   output reg        exec_done_o,		// This is asserted when instruction execution is done.
-   output reg        exec_aborted_o,	// This is asserted when the instruction execution was aborted by a read operation.
-   input       [7:0] tx_data_i,		   // Data to be transmitted to USB. Comes from a FIFO.
+   input       [7:0] instruction_i,    // Must be held constant until instruction execution is done.
+   input             exec_i,           // To execute instruction, assert for one cycle.
+   output reg        exec_done_o,	   // This is asserted when instruction execution is done.
+   output reg        exec_aborted_o,   // This is asserted when the instruction execution was aborted by a read operation.
+   input       [7:0] tx_data_i,	      // Data to be transmitted to USB. Comes from a FIFO.
    output reg        tx_data_next_o,   // 
-   input             tx_data_empty_i,	// Indicates FIFO is empty
+   input             tx_data_empty_i,  // Indicates FIFO is empty
    output reg  [7:0] rx_data_o,        // Data received from USB. Goes into a FIFO.
-   output reg        rx_data_next_o,	// 
-   input             rx_data_full_i,	// TODO: implement. Indicates FIFO is full.
+   output reg        rx_data_next_o,   // 
+   input             rx_data_full_i,   // TODO: implement. Indicates FIFO is full.
    output reg  [7:0] rx_cmd_byte_o,	   // Defined in table 7 of standard.
-   input       [7:0] phyreg_i,			// Data input for ULPI register writes
-   input       [7:0] phyreg_addr_i,		// Address input for ULPI register writes
-   output reg  [7:0] phyreg_o,		   // Data output for ULPI register reads
+   input       [7:0] phyreg_i,      	// Data input for ULPI register writes
+   input       [7:0] phyreg_addr_i,    // Address input for ULPI register writes
+   output reg  [7:0] phyreg_o,         // Data output for ULPI register reads
    output reg  [7:0] phyreg_addr_o     // Address output for ULPI register reads
 
 );
@@ -38,7 +38,7 @@ endmodule
 
 module oup_sm_ulpi_syncmode_tx(
    // ULPI bus
-   input             rst_i,			   // Resets state machine only
+   input             rst_i,            // Resets state machine only
    input             ulpi_clk_i,
    output reg  [7:0] ulpi_data_o,
    input             ulpi_dir_i,
@@ -46,15 +46,15 @@ module oup_sm_ulpi_syncmode_tx(
    input             ulpi_nxt_i,
    
    // Instructions and status
-   input       [7:0] instruction_i,	   // Must be held constant until instruction execution is done.
-   input             exec_i,			   // To execute instruction, assert for one cycle when machine is ready.
-   output reg        exec_ready_o,	   // Asserted when the machine is ready for the next instruction.
+   input       [7:0] instruction_i,    // Must be held constant until instruction execution is done.
+   input             exec_i,           // To execute instruction, assert for one cycle when machine is ready.
+   output reg        exec_ready_o,     // Asserted when the machine is ready for the next instruction.
    output reg        exec_aborted_o,   // Asserted when the instruction execution was aborted by a read operation.
    
    // TX FIFO buffer
-   input       [7:0] tx_data_i,		   // TX buffer data input
+   input       [7:0] tx_data_i,        // TX buffer data input
    output reg        tx_data_next_o,   // Requests next word from data buffer
-   input             tx_data_empty_i,	// Indicates when buffer is empty
+   input             tx_data_empty_i,  // Indicates when buffer is empty
 
    // phyreg registers
    input       [7:0] phyreg_i,         // Data input for ULPI register writes
@@ -62,37 +62,37 @@ module oup_sm_ulpi_syncmode_tx(
    output reg  [7:0] phyreg_addr_o,    // Not handled by the RX machine. Address output for ULPI register reads.
    
    // RX machine communication
-   output            rx_regr_assert_o,	// TX machine asserts this to indicate to the RX machine it needs a reg read.
-   input             rx_done_i,			// RX machine asserts this to indicate the operation was finished.
-   input             rx_abort_i,			// RX machine asserts this to indicate the operation was aborted.
+   output            rx_regr_assert_o, // TX machine asserts this to indicate to the RX machine it needs a reg read.
+   input             rx_done_i,        // RX machine asserts this to indicate the operation was finished.
+   input             rx_abort_i,       // RX machine asserts this to indicate the operation was aborted.
    
    // Machine states
-   output reg  [3:0] state,			   // Useful for debugging
-   output reg  [3:0] nextstate		   // Useful for debugging
+   output reg  [3:0] state,            // Useful for debugging
+   output reg  [3:0] nextstate         // Useful for debugging
 );
 
 
-   parameter	st_tx_idle				= 4'b0000,	// Transmit NOOP, and execute next instruction
-               st_tx_abort				= 4'b0001,	// Transmit NOOP, assert exec_aborted_o, and execute next instruction.
-               st_tx_reserved02		= 4'b0010,	
-               st_tx_reserved03		= 4'b0011,	
-               st_tx_transmit_start	= 4'b0100,	// Transmit TX PID or TXNOPID.
-               st_tx_transmit_data	= 4'b0101,	// Transmit USB data.
-               st_tx_transmit_stop	= 4'b0110,	// Stop, because there is no more data to transmit (assert stp).
-               st_tx_transmit_abort	= 4'b0111,	// Abort due to buffer underrun (assert stp and send FF to dataout).
-               st_tx_regw_addr		= 4'b1000,	// Transmit REGW address.
-               st_tx_extw_addr		= 4'b1001,	// Transmit EXTW address (8'b10101111).
-               st_tx_extw_extaddr	= 4'b1010,	// Transmit EXTW extended address (8 bit adress).
-               st_tx_regw_extw_data	= 4'b1011,	// Transmit register write data.
-               st_tx_regr_addr		= 4'b1100,	// Transmit REGR address.
-               st_tx_extr_addr		= 4'b1101,	// Transmit EXTR address (8'b11101111).
-               st_tx_extr_extaddr	= 4'b1110,	// Transmit EXTR extended address (8 bit address).
-               st_tx_regr_extr_read	= 4'b1111;	// Tell RX machine that there is a pending register read
+   parameter	st_tx_idle           = 4'b0000,  // Transmit NOOP, and execute next instruction
+               st_tx_abort          = 4'b0001,  // Transmit NOOP, assert exec_aborted_o, and execute next instruction.
+               st_tx_reserved02     = 4'b0010,
+               st_tx_reserved03     = 4'b0011,
+               st_tx_transmit_start = 4'b0100,  // Transmit TX PID or TXNOPID.
+               st_tx_transmit_data  = 4'b0101,  // Transmit USB data.
+               st_tx_transmit_stop  = 4'b0110,  // Stop, because there is no more data to transmit (assert stp).
+               st_tx_transmit_abort = 4'b0111,  // Abort due to buffer underrun (assert stp and send FF to dataout).
+               st_tx_regw_addr      = 4'b1000,  // Transmit REGW address.
+               st_tx_extw_addr      = 4'b1001,  // Transmit EXTW address (8'b10101111).
+               st_tx_extw_extaddr   = 4'b1010,  // Transmit EXTW extended address (8 bit adress).
+               st_tx_regw_extw_data = 4'b1011,  // Transmit register write data.
+               st_tx_regr_addr      = 4'b1100,  // Transmit REGR address.
+               st_tx_extr_addr      = 4'b1101,  // Transmit EXTR address (8'b11101111).
+               st_tx_extr_extaddr   = 4'b1110,  // Transmit EXTR extended address (8 bit address).
+               st_tx_regr_extr_read = 4'b1111;  // Tell RX machine that there is a pending register read
                
-   parameter 	ins_Special		= 2'b00,
-               ins_Transmit 	= 2'b01,
-               ins_RegWrite	= 2'b10,
-               ins_RegRead		= 2'b11;				
+   parameter   ins_Special    = 2'b00,
+               ins_Transmit   = 2'b01,
+               ins_RegWrite   = 2'b10,
+               ins_RegRead    = 2'b11;
                
    function [3:0] decode_instruction;
       input[7:0] instruction;
@@ -353,7 +353,7 @@ endmodule
 
 module oup_sm_ulpi_syncmode_rx(
    // ULPI bus
-   input             rst_i,			   // Resets state machine only
+   input             rst_i,            // Resets state machine only
    input             ulpi_clk_i,
    input       [7:0] ulpi_data_i,
    input             ulpi_dir_i,
@@ -361,21 +361,21 @@ module oup_sm_ulpi_syncmode_rx(
    input             ulpi_nxt_i,
 
    // Instructions and status
-   input             rx_regr_assert_i,	// TX machine asserts this to indicate to the RX machine it needs a reg read.
-   output reg        rx_done_o,			// RX machine asserts this to indicate the operation was finished.
-   output reg        rx_abort_o,			// RX machine asserts this to indicate the operation was aborted.
+   input             rx_regr_assert_i, // TX machine asserts this to indicate to the RX machine it needs a reg read.
+   output reg        rx_done_o,        // RX machine asserts this to indicate the operation was finished.
+   output reg        rx_abort_o,       // RX machine asserts this to indicate the operation was aborted.
 
    // RX FIFO buffer
-   input       [7:0] rx_data_o,		   // RX buffer data output
+   input       [7:0] rx_data_o,        // RX buffer data output
    output reg        rx_data_next_o,   // Loads next word on data buffer
-   input             rx_data_full_i,	// Indicates when buffer is full
+   input             rx_data_full_i,   // Indicates when buffer is full
 
    // phyreg register
    output reg  [7:0] phyreg_o,         // Data output for ULPI register reads
 
    // Machine states
-   output reg  [1:0] state,			   // Useful for debugging
-   output reg  [1:0] nextstate		   // Useful for debugging
+   output reg  [1:0] state,            // Useful for debugging
+   output reg  [1:0] nextstate         // Useful for debugging
 );
 
 endmodule
