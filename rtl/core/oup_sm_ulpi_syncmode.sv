@@ -1,5 +1,51 @@
+// Copyright 2024 Ivan Veloz. All rights reserved.
+// I'm in the process of choosing an open source license.
 
-module oup_sm_ulpi_syncmode(
+
+package oup_ulpi_phyregisters_p;
+   typedef enum logic[5:0]{
+      VID_L             = 'h00, VID_H, 
+      PID_L             = 'h02, PID_H,
+      FUNCTION_CTRL     = 'h04, FUNCTION_CTRL_S, FUNCTION_CTRL_C,
+      INTERFACE_CTRL    = 'h07, INTERFACE_CTRL_S, INTERFACE_CTRL_C,
+      OTG_CTRL          = 'h0A, OTG_CTRL_S, OTG_CTRL_C,
+      USB_INT_EN_RISE   = 'h0D, USB_INT_EN_RISE_S, USB_INT_EN_RISE_C,
+      USB_INT_EN_FALL   = 'h10, USB_INT_EN_FALL_S, USB_INT_EN_FALL_C,
+      USB_INT_STATUS    = 'h13,
+      USB_INT_LATCH     = 'h14,
+      DEBUG             = 'h15,
+      SCRATCH           = 'h16, SCRATCH_S, SCRATCH_C,
+      TX_POS_WIDTH_W    = 'h25,
+      TX_NEG_WIDTH_W    = 'h26,
+      RX_POL_RECOVERY   = 'h27,
+      EXTENDED_REG      = 'h2F
+   } phy_registers_t;
+endpackage
+
+package oup_ulpi_syncmode_instruction_p;
+   typedef union packed {
+      logic[7:0] aslogic;           // view is as a logic vector
+      struct packed {               // View it as an instruction
+         instruction_opcode_t opcode;
+         instruction_data_t data;
+      } instruction_t;
+   } instruction_union_t;
+
+   typedef enum logic[1:0] {
+      SPECIAL  = 2'b00,
+      TRANSMIT = 2'b01,
+      REGREAD  = 2'b10,
+      REGWRITE = 2'b11
+   } instruction_opcode_t;
+
+   typedef union packed {
+      oup_ulpi_phyregisters_p::phy_registers_t phyreg;   // view it as a phyreg enum
+      logic[5:0] data;                                    // view it as raw logic
+   } instruction_data_t;
+
+endpackage
+
+module oup_sm_ulpi_syncmode_m(
    input             rst_i,
    input             ulpi_clk_i,
    input       [7:0] ulpi_data_i,
@@ -9,32 +55,123 @@ module oup_sm_ulpi_syncmode(
    input             ulpi_nxt_i,
    input       [7:0] instruction_i,    // Must be held constant until instruction execution is done.
    input             exec_i,           // To execute instruction, assert for one cycle.
-   output reg        exec_done_o,	   // This is asserted when instruction execution is done.
-   output reg        exec_aborted_o,   // This is asserted when the instruction execution was aborted by a read operation.
+   output            exec_done_o,	   // This is asserted when instruction execution is done.
+   output            exec_aborted_o,   // This is asserted when the instruction execution was aborted by a read operation.
    input       [7:0] tx_data_i,	      // Data to be transmitted to USB. Comes from a FIFO.
-   output reg        tx_data_next_o,   // 
+   output            tx_data_next_o,   // 
    input             tx_data_empty_i,  // Indicates FIFO is empty
-   output reg  [7:0] rx_data_o,        // Data received from USB. Goes into a FIFO.
-   output reg        rx_data_next_o,   // 
+   output      [7:0] rx_data_o,        // Data received from USB. Goes into a FIFO.
+   output            rx_data_next_o,   // 
    input             rx_data_full_i,   // TODO: implement. Indicates FIFO is full.
-   output reg  [7:0] rx_cmd_byte_o,	   // Defined in table 7 of standard.
+   output      [7:0] rx_cmd_byte_o,	   // Defined in table 7 of standard.
    input       [7:0] phyreg_i,      	// Data input for ULPI register writes
    input       [7:0] phyreg_addr_i,    // Address input for ULPI register writes
-   output reg  [7:0] phyreg_o,         // Data output for ULPI register reads
-   output reg  [7:0] phyreg_addr_o     // Address output for ULPI register reads
+   output      [7:0] phyreg_o,         // Data output for ULPI register reads
+   output      [7:0] phyreg_addr_o     // Address output for ULPI register reads
 
 );
 
-   // TODO: implement exec_aborted output logic.
+   wor ulpi_stp;
+   wire rx_regr_assert;
+   wire rx_done;
+   wire rx_abort;
+
+   assign ulpi_stp_o = ulpi_stp;
+
    oup_sm_ulpi_syncmode_tx smtx (
       .rst_i(rst_i),
       .ulpi_clk_i(ulpi_clk_i),
-      .ulpi_data_o(ulpi_data_o),
-      // TODO: the rest of this
+      .ulpi_data_i(ulpi_data_i[7:0]),
+      .ulpi_dir_i(ulpi_dir_i),
+      .ulpi_stp_o(ulpi_stp),
+      .ulpi_nxt_i(ulpi_nxt_i),
+      .instruction(instruction_i[7:0]),
+      .exec_i(exec_i),
+      .exec_ready_o(exec_done_o),
+      .exec_aborted_o(exec_aborted_o),
+      .tx_data_i(tx_data_i[7:0]),
+      .tx_data_next_o(tx_data_next_o),
+      .tx_data_empty_i(tx_data_empty_i),
+      .phyreg_i(phyreg_i[7:0]),
+      .phyreg_addr_i(phyreg_addr_i[7:0]),
+      .phyreg_addr_o(phyreg_addr_o[7:0]),
+      .rx_regr_assert_o(rx_regr_assert),
+      .rx_done_i(rx_done),
+      .rx_abort_i(rx_abort)
+   );
+
+   oup_sm_ulpi_syncmode_rx rxsm (
+      .rst_i(rst_i),
+      .ulpi_clk_i(ulpi_clk_i),
+      .ulpi_data_i(ulpi_data_i[7:0]),
+      .ulpi_dir_i(ulpi_dir_i),
+      .ulpi_stp_o(ulpi_stp),
+      .ulpi_nxt_i(ulpi_nxt_i),
+      .rx_regr_assert_i(rx_regr_assert),
+      .rx_done_o(rx_done),
+      .rx_abort_o(rx_abort),
+      .rx_data_o(rx_data_o[7:0]),
+      .rx_data_next_o(rx_data_next_o),
+      .rx_data_full_i(rx_data_full_i),
+      .phyreg_o(phyreg_o[7:0]),
+      .rxcmdreg_o(rx_cmd_byte_o[7:0])
    );
 
       
 endmodule
+
+package oup_sm_ulpi_syncmode_tx_p;
+
+   parameter VERSION = "0.1";
+
+   typedef enum logic[3:0] {
+      IDLE           = 4'b0000,  // Transmiting NOOP, and fetching next instruction
+      ABORT          = 4'b0001,  // Transmitting NOOP, asserting exec_aborted_o, and executing next instruction.
+      RSVD02         = 4'b0010,  // Same as IDLE
+      RSVD03         = 4'b0011,  // Same as IDLE
+      TX_START       = 4'b0100,  // Transmiting TX PID or TXNOPID.
+      TX_DATA        = 4'b0101,  // Transmiting USB data.
+      TX_STOP        = 4'b0110,  // Asserting ulpi_stp_o, because there is no more data to transmit.
+      TX_ABORT       = 4'b0111,  // Aborting due to buffer underrun (asserting stp and sending 'hFF to dataout).
+      REGW_ADDR      = 4'b1000,  // Transmiting REGW address.
+      EXTW_ADDR      = 4'b1001,  // Transmiting EXTW address (8'b10101111).
+      EXTW_EXTADDR   = 4'b1010,  // Transmiting EXTW extended address (8 bit adress).
+      REGW_DATA      = 4'b1011,  // Transmiting register write data.
+      REGR_ADDR      = 4'b1100,  // Transmiting REGR address.
+      EXTR_ADDR      = 4'b1101,  // Transmiting EXTR address (8'b11101111).
+      EXTR_EXTADDR   = 4'b1110,  // Transmiting EXTR extended address (8 bit address).
+      REGR_WAIT      = 4'b1111   // Asserting rx_regr_assert_o to tell RX machine there is a pending register read.
+   } tx_states_t;
+
+   function tx_states_t decode_instruction;
+      input oup_ulpi_syncmode_instruction_p::instruction_union_t instruction;
+      begin
+         case(instruction.opcode)
+            oup_ulpi_syncmode_instruction_p::SPECIAL: begin
+               decode_instruction = IDLE;
+               end
+            oup_ulpi_syncmode_instruction_p::TRANSMIT: begin
+               decode_instruction = TX_START;
+               end
+            oup_ulpi_syncmode_instruction_p::REGWRITE: begin
+               if(instruction[5:0] == 6'b101111)
+                  decode_instruction = EXTW_ADDR;
+               else
+                  decode_instruction = REGW_ADDR;
+               end
+            oup_ulpi_syncmode_instruction_p::REGREAD: begin
+               if(instruction[5:0] == 6'b101111)
+                  decode_instruction = EXTR_ADDR;
+               else
+                  decode_instruction = REGR_ADDR;
+               end
+            default: decode_instruction = IDLE;
+         endcase
+      end
+   endfunction	
+
+
+endpackage
 
 module oup_sm_ulpi_syncmode_tx(
    // ULPI bus
@@ -46,7 +183,8 @@ module oup_sm_ulpi_syncmode_tx(
    input             ulpi_nxt_i,
    
    // Instructions and status
-   input       [7:0] instruction_i,    // Must be held constant until instruction execution is done.
+   input  oup_ulpi_syncmode_instruction_p::instruction_union_t instruction_i, 
+                                       // instruction_i must be held constant until execution is done.
    input             exec_i,           // To execute instruction, assert for one cycle when machine is ready.
    output reg        exec_ready_o,     // Asserted when the machine is ready for the next instruction.
    output reg        exec_aborted_o,   // Asserted when the instruction execution was aborted by a read operation.
@@ -64,67 +202,17 @@ module oup_sm_ulpi_syncmode_tx(
    // RX machine communication
    output            rx_regr_assert_o, // TX machine asserts this to indicate to the RX machine it needs a reg read.
    input             rx_done_i,        // RX machine asserts this to indicate the operation was finished.
-   input             rx_abort_i,       // RX machine asserts this to indicate the operation was aborted.
-   
-   // Machine states
-   output reg  [3:0] state,            // Useful for debugging
-   output reg  [3:0] nextstate         // Useful for debugging
+   input             rx_abort_i        // RX machine asserts this to indicate the operation was aborted.
 );
 
+   import oup_sm_ulpi_syncmode_tx_p::*;
 
-   parameter	st_tx_idle           = 4'b0000,  // Transmit NOOP, and execute next instruction
-               st_tx_abort          = 4'b0001,  // Transmit NOOP, assert exec_aborted_o, and execute next instruction.
-               st_tx_reserved02     = 4'b0010,
-               st_tx_reserved03     = 4'b0011,
-               st_tx_transmit_start = 4'b0100,  // Transmit TX PID or TXNOPID.
-               st_tx_transmit_data  = 4'b0101,  // Transmit USB data.
-               st_tx_transmit_stop  = 4'b0110,  // Stop, because there is no more data to transmit (assert stp).
-               st_tx_transmit_abort = 4'b0111,  // Abort due to buffer underrun (assert stp and send FF to dataout).
-               st_tx_regw_addr      = 4'b1000,  // Transmit REGW address.
-               st_tx_extw_addr      = 4'b1001,  // Transmit EXTW address (8'b10101111).
-               st_tx_extw_extaddr   = 4'b1010,  // Transmit EXTW extended address (8 bit adress).
-               st_tx_regw_extw_data = 4'b1011,  // Transmit register write data.
-               st_tx_regr_addr      = 4'b1100,  // Transmit REGR address.
-               st_tx_extr_addr      = 4'b1101,  // Transmit EXTR address (8'b11101111).
-               st_tx_extr_extaddr   = 4'b1110,  // Transmit EXTR extended address (8 bit address).
-               st_tx_regr_extr_read = 4'b1111;  // Tell RX machine that there is a pending register read
-               
-   parameter   ins_Special    = 2'b00,
-               ins_Transmit   = 2'b01,
-               ins_RegWrite   = 2'b10,
-               ins_RegRead    = 2'b11;
-               
-   function [3:0] decode_instruction;
-      input[7:0] instruction;
-      begin
-         case(instruction[7:6])
-            ins_Special: begin
-               decode_instruction = st_tx_idle;
-               end
-            ins_Transmit: begin
-               decode_instruction = st_tx_transmit_start;
-               end
-            ins_RegWrite: begin
-               if(instruction[5:0] == 6'b101111)
-                  decode_instruction = st_tx_extw_addr;
-               else
-                  decode_instruction = st_tx_regw_addr;
-               end
-            ins_RegRead: begin
-               if(instruction[5:0] == 6'b101111)
-                  decode_instruction = st_tx_extr_addr;
-               else
-                  decode_instruction = st_tx_regr_addr;
-               end
-            default: decode_instruction = st_tx_idle;
-         endcase
-      end
-   endfunction	
+   tx_states_t state, nextstate;
 
    always@(negedge ulpi_clk_i)
    begin: state_latch
       if(rst_i)
-         state <= st_tx_idle;
+         state <= IDLE;
       else
          state <= nextstate;
    end
@@ -132,224 +220,300 @@ module oup_sm_ulpi_syncmode_tx(
    always@(state or nextstate or instruction_i or exec_i or ulpi_dir_i or
            ulpi_nxt_i or tx_data_empty_i or rx_done_i or rx_abort_i)
       begin: next_state_logic
+
          case(state)
          
-            st_tx_idle: begin
+            IDLE: begin
+               if(ulpi_dir_i && exec_i)
+                  nextstate = decode_instruction(instruction_i);
+               else
+                  nextstate = IDLE;
+            end
+               
+            TX_ABORT: begin
                if(!ulpi_dir_i && exec_i)
                   nextstate = decode_instruction(instruction_i);
                else
-                  nextstate = st_tx_idle;
-               end
+                  nextstate = IDLE;
+            end
                
-            st_tx_abort: begin
-               if(!ulpi_dir_i && exec_i)
-                  nextstate = decode_instruction(instruction_i);
-               else
-                  nextstate = st_tx_idle;
-               end
-               
-            st_tx_reserved02: nextstate = st_tx_idle;
+            RSVD02: nextstate = IDLE;
             
-            st_tx_reserved03: nextstate = st_tx_idle;
+            RSVD03: nextstate = IDLE;
             
-            st_tx_transmit_start: begin		
+            TX_START: begin	
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin	
                   if(ulpi_nxt_i) begin
                         if(!tx_data_empty_i)
-                           nextstate = st_tx_transmit_data;
+                           nextstate = TX_DATA;
                         else
-                           nextstate = st_tx_transmit_abort;
-                        end
-                  else
-                     nextstate = st_tx_transmit_start;
+                           nextstate = TX_ABORT;
                   end
+                  else
+                     nextstate = TX_START;
+               end
+            end
                   // TODO: transmit high-speed abort if PHY is set up as high-speed
                   // (inverted CRC instead of the st_tx_transmit_abort state)
                   
-            st_tx_transmit_data: begin
+            TX_DATA: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin	
                   if(!tx_data_empty_i)
-                     nextstate = st_tx_transmit_data;
+                     nextstate = TX_DATA;
                   else
-                     nextstate = st_tx_transmit_stop;
-                  end
+                     nextstate = TX_STOP;
+               end
+            end
                   // TODO: transmit_abort logic 
                   // (differentiate between normal end of data and buffer underflow)
                   
-            st_tx_transmit_stop:	nextstate = st_tx_idle;
+            TX_STOP:	begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else
+                  nextstate = IDLE;
+            end
             
-            st_tx_transmit_abort: nextstate = st_tx_idle;
+            TX_ABORT: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else
+                  nextstate = IDLE;
+            end
             
-            st_tx_regw_addr: begin
+            REGW_ADDR: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin
                   if(ulpi_nxt_i)
-                     nextstate = st_tx_regw_extw_data;
+                     nextstate = REGW_DATA;
                   else
-                     nextstate = st_tx_regw_addr;
-                  end
+                     nextstate = REGW_ADDR;
+               end
+            end
                   
-            st_tx_extw_addr: begin
+            EXTW_ADDR: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin
                   if(ulpi_nxt_i)
-                     nextstate = st_tx_extw_extaddr;
+                     nextstate = EXTW_EXTADDR;
                   else
-                     nextstate = st_tx_extw_addr;
-                  end
+                     nextstate = EXTW_ADDR;
+               end
+            end
                   
-            st_tx_extw_extaddr: begin
+            EXTW_EXTADDR: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin
                   if(ulpi_nxt_i)
-                     nextstate = st_tx_regw_extw_data;
+                     nextstate = REGW_DATA;
                   else
-                     nextstate = st_tx_extw_extaddr;
-                  end
+                     nextstate = EXTW_EXTADDR;
+               end
+            end
                   
-            st_tx_regw_extw_data: begin
+            REGW_DATA: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin
                   if(ulpi_nxt_i)
-                     nextstate = st_tx_transmit_stop;
+                     nextstate = TX_STOP;    // we're done
                   else
-                     nextstate = st_tx_regw_extw_data;
-                  end
+                     nextstate = REGW_DATA;
+               end
+            end
                   
-            st_tx_regr_addr: begin
+            REGR_ADDR: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin
                   if(ulpi_nxt_i)
-                     nextstate = st_tx_regr_extr_read;
+                     nextstate = REGR_WAIT;
                   else
-                     nextstate = st_tx_regr_addr;
-                  end	
+                     nextstate = REGR_ADDR;
+               end
+            end	
                   
-            st_tx_extr_addr: begin
+            EXTR_ADDR: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin
                   if(ulpi_nxt_i)
-                     nextstate = st_tx_extr_extaddr;
+                     nextstate = EXTR_EXTADDR;
                   else
-                     nextstate = st_tx_extr_addr;
-                  end
+                     nextstate = EXTR_ADDR;
+               end
+            end
                   
-            st_tx_extr_extaddr: begin
+            EXTR_EXTADDR: begin
+               if(ulpi_dir_i)
+                  nextstate = ABORT;
+               else begin
                   if(ulpi_nxt_i)
-                     nextstate = st_tx_regr_extr_read;
+                     nextstate = REGR_WAIT;
                   else
-                     nextstate = st_tx_extr_extaddr;
-                  end
+                     nextstate = EXTR_EXTADDR;
+               end
+            end
                   
-            st_tx_regr_extr_read: begin
+            REGR_WAIT: begin                 // turnaround + phy transmitting
                   if(rx_abort_i)
-                     nextstate = st_tx_abort;
+                     nextstate = ABORT;
                   else if(rx_done_i)
-                     nextstate = st_tx_idle;
+                     nextstate = IDLE;
                   else if(ulpi_dir_i)
-                     nextstate = st_tx_regr_extr_read;
+                     nextstate = REGR_WAIT;  // PHY is transmitting, keep waiting
                   else
-                     nextstate = st_tx_abort;
+                     nextstate = ABORT;
                      // The RX machine is not responding.
-                  end
-            default: nextstate = st_tx_idle;
+            end
+            default: nextstate = IDLE;
          endcase
       end
 
    always@(state or instruction_i or tx_data_i or ulpi_nxt_i or phyreg_addr_i or phyreg_i)
-      begin: output_logic_unregistered
+      begin: output_logic_asynchronous
       // These outputs change on the falling edge plus some output delay 
       // Constrain the output delay to >=3ns.
-         casez(state)
-            st_tx_idle: begin
-               ulpi_data_o = 2'h00;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b1;
-               exec_aborted_o = 1'b0;
+         case(state)
+            IDLE: begin
+               ulpi_data_o       = 2'h00;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b1;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_abort: begin
-               ulpi_data_o = 2'h00;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b1;
-               exec_aborted_o = 1'b1;
+            ABORT: begin
+               ulpi_data_o       = 2'h00;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b1;
+               exec_aborted_o    = 1'b1;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_transmit_start: begin
-               ulpi_data_o = instruction_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = ulpi_nxt_i;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            TX_START: begin
+               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = ulpi_nxt_i;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_transmit_data: begin
-               ulpi_data_o = tx_data_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = ulpi_nxt_i;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            TX_DATA: begin
+               ulpi_data_o       = tx_data_i;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = ulpi_nxt_i;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_transmit_stop: begin
-               ulpi_data_o = 2'h00;
-               ulpi_stp_o = 1'b1;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            TX_STOP: begin
+               ulpi_data_o       = 2'h00;
+               ulpi_stp_o        = 1'b1;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_transmit_abort: begin
-               ulpi_data_o = 8'hFF;
-               ulpi_stp_o = 1'b1;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            TX_ABORT: begin
+               ulpi_data_o       = 8'hFF;
+               ulpi_stp_o        = 1'b1;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_regw_addr: begin
-               ulpi_data_o = instruction_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            REGW_ADDR: begin
+               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_extw_addr: begin
-               ulpi_data_o = instruction_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            EXTW_ADDR: begin
+               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_extw_extaddr: begin
-               ulpi_data_o = phyreg_addr_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            EXTW_EXTADDR: begin
+               ulpi_data_o       = phyreg_addr_i;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_regw_extw_data: begin
-               ulpi_data_o = phyreg_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            REGW_DATA: begin
+               ulpi_data_o       = phyreg_i;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_regr_addr: begin
-               ulpi_data_o = instruction_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            REGR_ADDR: begin
+               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_extr_addr: begin
-               ulpi_data_o = instruction_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            EXTR_ADDR: begin
+               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
-            st_tx_extr_extaddr: begin
-               ulpi_data_o = phyreg_addr_i;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+            EXTR_EXTADDR: begin
+               ulpi_data_o       = phyreg_addr_i;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
+               end
+            REGR_WAIT: begin
+               ulpi_data_o       = 2'h00;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b1;
                end
             default: begin
-               ulpi_data_o = 2'h00;
-               ulpi_stp_o = 1'b0;
-               tx_data_next_o = 1'b0;
-               exec_ready_o = 1'b0;
-               exec_aborted_o = 1'b0;
+               ulpi_data_o       = 2'h00;
+               ulpi_stp_o        = 1'b0;
+               tx_data_next_o    = 1'b0;
+               exec_ready_o      = 1'b0;
+               exec_aborted_o    = 1'b0;
+               rx_regr_assert_o  = 1'b0;
                end
          endcase
       end
 
                
 endmodule
+
+package oup_sm_ulpi_syncmode_rx_p;
+   typedef enum logic[1:0] {
+      IDLE, REGR_DATA, RECEIVING_ABORT, RECEIVING
+   } rx_states_t;
+
+endpackage
 
 module oup_sm_ulpi_syncmode_rx(
    // ULPI bus
@@ -366,16 +530,111 @@ module oup_sm_ulpi_syncmode_rx(
    output reg        rx_abort_o,       // RX machine asserts this to indicate the operation was aborted.
 
    // RX FIFO buffer
-   input       [7:0] rx_data_o,        // RX buffer data output
+   output      [7:0] rx_data_o,        // RX buffer data output
    output reg        rx_data_next_o,   // Loads next word on data buffer
    input             rx_data_full_i,   // Indicates when buffer is full
 
    // phyreg register
    output reg  [7:0] phyreg_o,         // Data output for ULPI register reads
 
-   // Machine states
-   output reg  [1:0] state,            // Useful for debugging
-   output reg  [1:0] nextstate         // Useful for debugging
+   // RX CMD register
+   output reg  [7:0] rxcmdreg_o        // RX CMD register
 );
 
+   // TODO: IMPLEMENT RX_DATA_FULL LOGIC 
+   import oup_sm_ulpi_syncmode_rx_p::*;
+
+   rx_states_t state, nextstate;
+
+   always@(negedge ulpi_clk_i)
+      begin: state_latch
+         if (rst_i)
+            state <= IDLE;
+         else
+            state <= nextstate;
+      end
+
+   always@(*)
+      begin: next_state_logic
+         case(state)
+            IDLE: begin
+               if(!ulpi_dir_i)
+                  nextstate = IDLE;                // we are not receiving
+               else begin
+                  if(rx_regr_assert_i) begin
+                     if(ulpi_nxt_i)     
+                        nextstate = RECEIVING_ABORT;    // a register read was aborted by an incoming USB receive 
+                     else
+                        nextstate = REGR_DATA;     // a register read is happening
+                  end
+                  else begin
+                        nextstate = RECEIVING;
+                  end
+               end
+            end
+            REGR_DATA: begin
+               if(!ulpi_dir_i)                     // we are not receiving
+                  nextstate = IDLE;
+               else begin
+                  nextstate = RECEIVING;           // we are receiving if dir is high on next clock
+               end
+            end
+            RECEIVING_ABORT: begin
+               if(!ulpi_dir_i)                     // we are not receiving
+                  nextstate = IDLE;
+               else begin
+                  nextstate = RECEIVING;           // we are receiving if dir is high on next clock
+               end
+            end
+            RECEIVING: begin
+               if(!ulpi_dir_i)                     // we are not receiving
+                  nextstate = IDLE;
+               else begin
+                  nextstate = RECEIVING;           // we are receiving if dir is high on next clock
+               end
+            end
+            default:
+               nextstate = IDLE;
+         endcase
+      end
+
+   always@(ulpi_clk_i)
+      begin: output_logic_synchronous
+
+         // Default assignments for combinational signals
+         rx_done_o      = '0;
+         rx_abort_o     = '0;
+         rx_data_next_o = '0;
+         rx_data_o      = '0;
+
+
+         if(state == RECEIVING_ABORT) 
+            rx_abort_o = '1;
+
+         case(state)
+            IDLE: begin
+               rx_done_o   = '1;
+            end
+            REGR_DATA: begin
+               if(ulpi_dir_i)
+                  phyreg_o = ulpi_data_i;
+               else
+                  rx_abort_o = '1;                 // we didn't get the data we expected because DIR changed direction
+            end
+            RECEIVING, RECEIVING_ABORT: begin
+               if(ulpi_dir_i) begin                // Only latch these things if dir is still high for receiving
+                  if(!ulpi_nxt_i) begin            // receiving RX CMD
+                     rxcmdreg_o = ulpi_data_i;
+                  end
+                  else begin                       // receiving RX data
+                     rx_data_next_o = '1;
+                     rx_data_o = ulpi_data_i;
+                  end
+               end
+            end
+         endcase
+
+
+
+      end
 endmodule
