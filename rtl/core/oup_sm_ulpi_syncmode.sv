@@ -55,16 +55,16 @@ module oup_sm_ulpi_syncmode_m(
    input             ulpi_nxt_i,
    input       [7:0] instruction_i,    // Must be held constant until instruction execution is done.
    input             exec_i,           // To execute instruction, assert for one cycle.
-   output            exec_done_o,	   // This is asserted when instruction execution is done.
+   output            exec_done_o,      // This is asserted when instruction execution is done.
    output            exec_aborted_o,   // This is asserted when the instruction execution was aborted by a read operation.
-   input       [7:0] tx_data_i,	      // Data to be transmitted to USB. Comes from a FIFO.
+   input       [7:0] tx_data_i,        // Data to be transmitted to USB. Comes from a FIFO.
    output            tx_data_next_o,   // 
    input             tx_data_empty_i,  // Indicates FIFO is empty
    output      [7:0] rx_data_o,        // Data received from USB. Goes into a FIFO.
    output            rx_data_next_o,   // 
    input             rx_data_full_i,   // TODO: implement. Indicates FIFO is full.
-   output      [7:0] rx_cmd_byte_o,	   // Defined in table 7 of standard.
-   input       [7:0] phyreg_i,      	// Data input for ULPI register writes
+   output      [7:0] rx_cmd_byte_o,    // Defined in table 7 of standard.
+   input       [7:0] phyreg_i,         // Data input for ULPI register writes
    input       [7:0] phyreg_addr_i,    // Address input for ULPI register writes
    output      [7:0] phyreg_o,         // Data output for ULPI register reads
    output      [7:0] phyreg_addr_o     // Address output for ULPI register reads
