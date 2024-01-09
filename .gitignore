@@ -1,1 +1,5 @@
 *.bak
+__pycache__/
+dump.vcd
+sim_build
+results.xml
