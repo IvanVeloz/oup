@@ -3,6 +3,7 @@
 
 `include "oup_ulpi_phyregisters.sv"
 `include "oup_sm_ulpi_syncmode_tx.sv"
+`include "oup_sm_ulpi_syncmode_rx.sv"
 
 module oup_sm_ulpi_syncmode(
    input             rst_i,
@@ -12,7 +13,7 @@ module oup_sm_ulpi_syncmode(
    input             ulpi_dir_i,
    output            ulpi_stp_o,
    input             ulpi_nxt_i,
-   input       [7:0] instruction_i,    // Must be held constant until instruction execution is done.
+   input       [7:0] instruction_i,
    input             exec_i,           // To execute instruction, assert for one cycle.
    output            exec_done_o,      // This is asserted when instruction execution is done.
    output            exec_aborted_o,   // This is asserted when the instruction execution was aborted by a read operation.
@@ -60,7 +61,7 @@ module oup_sm_ulpi_syncmode(
       .rx_abort_i(rx_abort)
    );
 
-   oup_sm_ulpi_syncmode_rx rxsm (
+   oup_sm_ulpi_syncmode_rx smrx (
       .rst_i(rst_i),
       .ulpi_clk_i(ulpi_clk_i),
       .ulpi_data_i(ulpi_data_i[7:0]),

@@ -4,10 +4,10 @@
 package oup_sm_ulpi_syncmode_tx_p;
 
    typedef enum logic[3:0] {
-      IDLE           = 4'b0000,  // Transmiting NOOP, and fetching next instruction
-      ABORT          = 4'b0001,  // Transmitting NOOP, asserting exec_aborted_o, and executing next instruction.
-      RSVD02         = 4'b0010,  // Same as IDLE
-      RSVD03         = 4'b0011,  // Same as IDLE
+      IDLE           = 4'b0000,  // Transmiting NOOP, and fetching next instruction.
+      ABORT          = 4'b0001,  // Transmitting NOOP, asserting exec_aborted_o, and fetching next instruction.
+      RSVD02         = 4'b0010,  // Transmitting NOOP and going back to IDLE.
+      RSVD03         = 4'b0011,  // Transmitting NOOP and going back to IDLE.
       TX_START       = 4'b0100,  // Transmiting TX PID or TXNOPID.
       TX_DATA        = 4'b0101,  // Transmiting USB data.
       TX_STOP        = 4'b0110,  // Asserting ulpi_stp_o, because there is no more data to transmit.
@@ -25,8 +25,8 @@ package oup_sm_ulpi_syncmode_tx_p;
    typedef enum logic[1:0] {
       SPECIAL  = 2'b00,
       TRANSMIT = 2'b01,
-      REGREAD  = 2'b10,
-      REGWRITE = 2'b11
+      REGWRITE = 2'b10,
+      REGREAD  = 2'b11
    } instruction_opcode_t;
 
    typedef union packed {
@@ -53,13 +53,13 @@ package oup_sm_ulpi_syncmode_tx_p;
                decode_instruction = TX_START;
                end
             REGWRITE: begin
-               if(instruction[5:0] == oup_ulpi_phyregisters::EXTENDED_REG)
+               if(instruction.asinstruction.data.phyreg == oup_ulpi_phyregisters::EXTENDED_REG)
                   decode_instruction = EXTW_ADDR;
                else
                   decode_instruction = REGW_ADDR;
                end
             REGREAD: begin
-               if(instruction[5:0] == oup_ulpi_phyregisters::EXTENDED_REG)
+               if(instruction.asinstruction.data.phyreg == oup_ulpi_phyregisters::EXTENDED_REG)
                   decode_instruction = EXTR_ADDR;
                else
                   decode_instruction = REGR_ADDR;
@@ -106,7 +106,8 @@ module oup_sm_ulpi_syncmode_tx(
 
    import oup_sm_ulpi_syncmode_tx_p::*;
 
-   tx_states_t state, nextstate;
+   instruction_union_t instruction_r = '0;   // Instruction register. Updated at ulpi_clk_i negedge only if idling.
+   tx_states_t state = IDLE, nextstate;
 
    always@(negedge ulpi_clk_i)
    begin: state_latch
@@ -121,9 +122,9 @@ module oup_sm_ulpi_syncmode_tx(
       begin: next_state_logic
 
          case(state)
-         
+
             IDLE: begin
-               if(ulpi_dir_i && exec_i)
+               if(!ulpi_dir_i && exec_i)
                   nextstate = decode_instruction(instruction_i);
                else
                   nextstate = IDLE;
@@ -276,6 +277,16 @@ module oup_sm_ulpi_syncmode_tx(
          endcase
       end
 
+   always@(negedge ulpi_clk_i)
+      begin: output_logic_synchronous
+         case(state)
+            IDLE,ABORT: begin
+               instruction_r = instruction_i;// Latch only when fetching. Will retain the instruction decoded by IDLE.
+            end
+            default: begin end
+         endcase
+      end
+
    always@(state or instruction_i or tx_data_i or ulpi_nxt_i or phyreg_addr_i or phyreg_i)
       begin: output_logic_asynchronous
       // These outputs change on the falling edge plus some output delay 
@@ -298,7 +309,7 @@ module oup_sm_ulpi_syncmode_tx(
                rx_regr_assert_o  = 1'b0;
                end
             TX_START: begin
-               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_data_o       = instruction_r.aslogic;
                ulpi_stp_o        = 1'b0;
                tx_data_next_o    = ulpi_nxt_i;
                exec_ready_o      = 1'b0;
@@ -330,7 +341,7 @@ module oup_sm_ulpi_syncmode_tx(
                rx_regr_assert_o  = 1'b0;
                end
             REGW_ADDR: begin
-               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_data_o       = instruction_r.aslogic;
                ulpi_stp_o        = 1'b0;
                tx_data_next_o    = 1'b0;
                exec_ready_o      = 1'b0;
@@ -338,7 +349,7 @@ module oup_sm_ulpi_syncmode_tx(
                rx_regr_assert_o  = 1'b0;
                end
             EXTW_ADDR: begin
-               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_data_o       = instruction_r.aslogic;
                ulpi_stp_o        = 1'b0;
                tx_data_next_o    = 1'b0;
                exec_ready_o      = 1'b0;
@@ -362,7 +373,7 @@ module oup_sm_ulpi_syncmode_tx(
                rx_regr_assert_o  = 1'b0;
                end
             REGR_ADDR: begin
-               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_data_o       = instruction_r.aslogic;
                ulpi_stp_o        = 1'b0;
                tx_data_next_o    = 1'b0;
                exec_ready_o      = 1'b0;
@@ -370,7 +381,7 @@ module oup_sm_ulpi_syncmode_tx(
                rx_regr_assert_o  = 1'b0;
                end
             EXTR_ADDR: begin
-               ulpi_data_o       = instruction_i.aslogic;
+               ulpi_data_o       = instruction_r.aslogic;
                ulpi_stp_o        = 1'b0;
                tx_data_next_o    = 1'b0;
                exec_ready_o      = 1'b0;
