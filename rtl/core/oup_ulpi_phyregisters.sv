@@ -17,11 +17,25 @@ package oup_ulpi_phyregisters;
       USB_INT_LATCH     = 'h14,
       DEBUG             = 'h15,
       SCRATCH           = 'h16, SCRATCH_S, SCRATCH_C,
+      CARKIT_CTRL       = 'h19, CARKIT_CTRL_S, CARKIT_CTRL_C,
+      CARKIT_DLY        = 'h1C,
+      CARKIT_INT_EN     = 'h1D, CARKIT_INT_EN_S, CARKIT_INT_EN_C,
+      CARKIT_INT_STAT   = 'h20,
+      CARKIT_INT_LATCH  = 'h21,
+      CARKIT_PLS_CTRL   = 'h22, CARKIT_PLS_CTRL_S, CARKIT_PLS_CTRL_C,
       TX_POS_WIDTH_W    = 'h25,
       TX_NEG_WIDTH_W    = 'h26,
       RX_POL_RECOVERY   = 'h27,
       EXTENDED_REG      = 'h2F
    } phy_registers_t;
+
+   // Array with the addresses of the registers that have _s and _s variants
+   const phy_registers_t phy_sc_registers[] = '{     
+      FUNCTION_CTRL, INTERFACE_CTRL, OTG_CTRL,
+      USB_INT_EN_RISE, USB_INT_EN_FALL, SCRATCH,
+      CARKIT_CTRL, CARKIT_INT_EN, CARKIT_PLS_CTRL
+   };
+
 endpackage
 
 `endif

@@ -1,21 +1,23 @@
 # Makefile
 RTL_DIR ?= $(PWD)/../../rtl
+TEST_DIR ?= $(PWD)/..
 
 # defaults
 SIM ?= verilator
 SIM_ARGS += --wave=anyname.fst
-EXTRA_ARGS += --trace --trace-structs
+EXTRA_ARGS += --trace --trace-structs --timing
 
 TOPLEVEL_LANG ?= verilog
 
-VERILOG_SOURCES += $(RTL_DIR)/core/oup_sm_ulpi_syncmode.sv
+VERILOG_SOURCES += ./tb_oup_sm_ulpi_syncmode.sv
 VERILOG_INCLUDE_DIRS += $(RTL_DIR)
 VERILOG_INCLUDE_DIRS += $(RTL_DIR)/core
+VERILOG_INCLUDE_DIRS += $(TEST_DIR)/common
 
 # use VHDL_SOURCES for VHDL files
 
 # TOPLEVEL is the name of the toplevel module in your Verilog or VHDL file
-TOPLEVEL = oup_sm_ulpi_syncmode
+TOPLEVEL = tb_oup_sm_ulpi_syncmode
 
 # MODULE is the basename of the Python test file
 MODULE = oup_sm_ulpi_syncmode

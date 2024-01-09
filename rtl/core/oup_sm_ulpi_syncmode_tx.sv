@@ -34,7 +34,7 @@ package oup_sm_ulpi_syncmode_tx_p;
       logic[5:0] data;                                    // view it as raw logic
    } instruction_data_t;
 
-      typedef union packed {
+   typedef union packed {
       logic[7:0] aslogic;           // view is as a logic vector
       struct packed {               // View it as an instruction
          instruction_opcode_t opcode;

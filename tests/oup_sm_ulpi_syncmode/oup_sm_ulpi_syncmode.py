@@ -21,13 +21,18 @@ async def reset(dut):
 async def tb_oup_sm_ulpi_syncmode(dut):
     """Try accessing the design."""
 
-    await cocotb.start(generate_clock(dut))  # run the clock "in the background"
+    await cocotb.start(generate_clock(dut)) # run the clock "in the background"
 
-    await cocotb.start(reset(dut)) #reset the DUT
+    await cocotb.start(reset(dut))          # reset the DUT
+
+    REGW = 0b10000000                       # Register write instruction
+
+    registerTestAddr = 0b00010110           # scratch register
+    registerTestValue = 123                 # arbitrary value
 
     await FallingEdge(dut.rst_i)
-    dut.instruction_i.value = 0b10001111
-    dut.phyreg_i.value = 123
+    dut.instruction_i.value = REGW|registerTestAddr
+    dut.phyreg_i.value = registerTestValue
     dut.exec_i.value = 1
     await ClockCycles(dut.ulpi_clk_i, 3, True)
     dut.exec_i.value = 0
@@ -35,9 +40,7 @@ async def tb_oup_sm_ulpi_syncmode(dut):
     await RisingEdge(dut.ulpi_clk_i)
     dut.instruction_i.value = 0b00000000
 
-    #await RisingEdge(dut.exec_done_o)
-    #assert dut.exec_aborted_o.value == 0, "exec_aborted_o is not 0!"
-    await ClockCycles(dut.ulpi_clk_i, 10)
-    #await FallingEdge(dut.ulpi_clk_i)  # wait for falling edge/"negedge"
-
-    dut._log.info("exec_done_o is %s", dut.exec_done_o.value)
+    await RisingEdge(dut.exec_done_o)
+    assert dut.exec_aborted_o.value == 0, "exec_aborted_o is not 1!"
+    assert dut.phymodel.phyregs[registerTestAddr].value == registerTestValue, "register write failed!"
+    # Check that you're not writing to a _S or _C register, they don't read the same they write.
