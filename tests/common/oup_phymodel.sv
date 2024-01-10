@@ -35,6 +35,7 @@ module oup_phymodel (
 
     phymodel_state_t state, nextstate;
     phymodel_state_t regwrite_process_ns = ST_REGWRITE;
+    phymodel_state_t regread_process_ns  = ST_REGREAD;
     phymodel_payload_t payload;
     phymodel_code_t code;
 
@@ -92,7 +93,7 @@ module oup_phymodel (
                 nextstate = regwrite_process_ns;
             end
             ST_REGREAD: begin
-                nextstate = ST_LOCKED;  // TODO
+                nextstate = regread_process_ns;
             end
         endcase
     end
@@ -115,7 +116,8 @@ module oup_phymodel (
             $display("Entered regwrite_process");
             @(posedge clk_i);       // eventually make this delay variable
             ulpi_nxt_o = '1;        // (for a delay, to set nxt=0)
-            address = {2'b00,ulpi_data_i[5:0]};
+            // Assigning `address` here tests that the link throttles when nxt=0
+            address = {2'b00,ulpi_data_i[5:0]}; 
             if(address == 8'b00101111) begin
                 $display("Doing extended write");
                 @(posedge clk_i);
@@ -132,6 +134,34 @@ module oup_phymodel (
         end
         else
             regwrite_process_ns = ST_REGWRITE;
+    end
+
+    always@(state)
+    begin: regread_process
+        logic [7:0] address;
+        if(state == ST_REGREAD) begin
+            $display("Entered regread_process");
+            @(posedge clk_i);
+            ulpi_nxt_o = '1;
+            // Assigning `address` here tests that the link throttles when nxt=0
+            address = {2'b00,ulpi_data_i[5:0]};
+            if(address == 8'b00101111) begin
+                $display("Doing extended read");
+                @(posedge clk_i);
+                address = ulpi_data_i[7:0];
+            end
+            @(posedge clk_i);
+            ulpi_nxt_o = '0;
+            ulpi_dir_o = '1;
+            @(posedge clk_i);
+            ulpi_data_o = phyregs[address];
+            @(posedge clk_i);
+            ulpi_dir_o = '0;
+            ulpi_data_o = 'X;
+            regread_process_ns = ST_NOOP;
+        end
+        else
+            regread_process_ns = ST_REGREAD;
     end
 
     always@(phyregs_shadow)

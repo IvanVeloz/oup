@@ -263,15 +263,15 @@ module oup_sm_ulpi_syncmode_tx(
             end
                   
             REGR_WAIT: begin                 // turnaround + phy transmitting
-                  if(rx_abort_i)
+                  if(ulpi_dir_i)
+                     nextstate = REGR_WAIT;  // PHY transmitting, keep waiting
+                  else if(rx_abort_i)
                      nextstate = ABORT;
                   else if(rx_done_i)
                      nextstate = IDLE;
-                  else if(ulpi_dir_i)
-                     nextstate = REGR_WAIT;  // PHY is transmitting, keep waiting
                   else
-                     nextstate = ABORT;
-                     // The RX machine is not responding.
+                     nextstate = REGR_WAIT;
+                     // The RX machine is not done yet.
             end
             default: nextstate = IDLE;
          endcase
@@ -296,7 +296,7 @@ module oup_sm_ulpi_syncmode_tx(
                ulpi_data_o       = 8'h00;
                ulpi_stp_o        = 1'b0;
                tx_data_next_o    = 1'b0;
-               exec_ready_o      = 1'b1;
+               exec_ready_o      = 1'b1 & rx_done_i;
                exec_aborted_o    = 1'b0;
                rx_regr_assert_o  = 1'b0;
                end
@@ -304,7 +304,7 @@ module oup_sm_ulpi_syncmode_tx(
                ulpi_data_o       = 8'h00;
                ulpi_stp_o        = 1'b0;
                tx_data_next_o    = 1'b0;
-               exec_ready_o      = 1'b1;
+               exec_ready_o      = 1'b1 & rx_done_i;
                exec_aborted_o    = 1'b1;
                rx_regr_assert_o  = 1'b0;
                end

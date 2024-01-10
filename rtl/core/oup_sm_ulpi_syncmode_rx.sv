@@ -55,10 +55,10 @@ module oup_sm_ulpi_syncmode_rx(
                   nextstate = IDLE;                // we are not receiving
                else begin
                   if(rx_regr_assert_i) begin
-                     if(ulpi_nxt_i)     
-                        nextstate = RECEIVING_ABORT;    // a register read was aborted by an incoming USB receive 
-                     else
-                        nextstate = REGR_DATA;     // a register read is happening
+                     if(ulpi_nxt_i)                // a register read was aborted by an incoming USB receive 
+                        nextstate = RECEIVING_ABORT;
+                     else                          // a register read is happening
+                        nextstate = REGR_DATA;
                   end
                   else begin
                         nextstate = RECEIVING;
@@ -91,45 +91,46 @@ module oup_sm_ulpi_syncmode_rx(
          endcase
       end
 
-   always@(ulpi_clk_i)
+   always@(negedge ulpi_clk_i)
       begin: output_logic_synchronous
-
-         // Default assignments for combinational signals
-         rx_done_o      = '0;
-         rx_abort_o     = '0;
-         rx_data_next_o = '0;
-         rx_data_o      = '0;
-
-
-         if(state == RECEIVING_ABORT) 
-            rx_abort_o = '1;
-
+         rx_data_o      = ulpi_data_i;             // latch the RX data.
+                                                   // a _next signal exists to control latching down the pipeline.
          case(state)
             IDLE: begin
-               rx_done_o   = '1;
+               rx_done_o      = '1;
+               rx_abort_o     = '0;
+               rx_data_next_o = '0;
             end
             REGR_DATA: begin
-               if(ulpi_dir_i)
-                  phyreg_o = ulpi_data_i;
-               else
-                  rx_abort_o = '1;                 // we didn't get the data we expected because DIR changed direction
-            end
-            RECEIVING, RECEIVING_ABORT: begin
-               if(ulpi_dir_i) begin                // Only latch these things if dir is still high for receiving
-                  if(!ulpi_nxt_i) begin            // receiving RX CMD
-                     rxcmdreg_o = ulpi_data_i;
-                  end
-                  else begin                       // receiving RX data
-                     rx_data_next_o = '1;
-                     rx_data_o = ulpi_data_i;
-                  end
+               if(ulpi_dir_i) begin
+                  phyreg_o       = ulpi_data_i;    // latch the PHYREG data
+                  rx_done_o      = '0;
+                  rx_abort_o     = '0;
+                  rx_data_next_o = '0;
+               end
+               else begin                          // should never happen but...
+                  rx_done_o      = '0;
+                  rx_abort_o     = '1;
+                  rx_data_next_o = '0;
                end
             end
+            RECEIVING, RECEIVING_ABORT: begin
+               rx_done_o      = '0;
+               rx_abort_o     = (state == RECEIVING_ABORT);
+               if(ulpi_dir_i) begin                // it's not a turnaround; read the ULPI bus
+                  if(!ulpi_nxt_i) begin            // it's an RX CMD
+                     rxcmdreg_o = ulpi_data_i;     // latch the RX CMD
+                     rx_data_next_o = '0;
+                  end
+                  else                             // it's USB data; 
+                     rx_data_next_o = '1;          // enable latching down the pipeline.
+               end
+               else                                // it's a turnaround; ignore everything
+                     rx_data_next_o = '0;
+            end
          endcase
-
-
-
       end
+
 endmodule
 
 `endif
