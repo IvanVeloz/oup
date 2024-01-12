@@ -11,17 +11,29 @@ module oup_phymodel (
     output reg  [7:0] ulpi_data_o,
     output            ulpi_dir_o,
     input             ulpi_stp_i,
-    output            ulpi_nxt_o
+    output            ulpi_nxt_o,
+    input int         seed_i,
+    input             tb_receive_start, // Assert to start simulating reception
+    input             tb_receive_stop,  // Assert to stop simulating reception
+    input             tb_receive_rxcmd  // If 1, transmit RXCMD. Else, RX data
 );
 
     logic[7:0] phyregs[0:255];          // Reads like the ULPI standard
     logic[7:0] phyregs_shadow[0:255];   // Register that gets written to
 
+    logic[7:0] fake_usb_data[0:16383];  // Fake USB data we "receive" from host
+    int        fake_usb_index = 0;      // Global so you never overwrite data
+                                        // RX:  Link <- PHY <- Host
+
+    logic[7:0] tx_usb_data[0:16383];    // Fake USB data we "transmit" to host
+    int        tx_usb_index = 0;        // Global so you never overwrite data
+                                        // TX:  Link -> PHY -> Host
+
     import oup_ulpi_phyregisters::*;
 
     typedef enum int {
         ST_IDLE, ST_NOOP, ST_SPECIAL, ST_TRANSMIT, ST_REGWRITE, ST_REGREAD, 
-        ST_LOCKED
+        ST_RECEIVE, ST_LOCKED
     } phymodel_state_t;
 
     typedef enum int {
@@ -34,8 +46,10 @@ module oup_phymodel (
     } phymodel_code_t;
 
     phymodel_state_t state, nextstate;
+    phymodel_state_t transmit_process_ns = ST_TRANSMIT;
     phymodel_state_t regwrite_process_ns = ST_REGWRITE;
     phymodel_state_t regread_process_ns  = ST_REGREAD;
+    phymodel_state_t receive_process_ns  = ST_RECEIVE;
     phymodel_payload_t payload;
     phymodel_code_t code;
 
@@ -44,6 +58,11 @@ module oup_phymodel (
 
     initial begin
         reset_phyregs();
+    end
+
+    always@(seed_i)
+    begin: randomize_fake_usb_data
+        generate_fake_usb_data(seed_i);
     end
 
     always @(posedge clk_i) 
@@ -87,7 +106,7 @@ module oup_phymodel (
                 end
             end
             ST_TRANSMIT: begin
-                nextstate = ST_LOCKED;  // TODO
+                nextstate = transmit_process_ns;
             end
             ST_REGWRITE: begin
                 nextstate = regwrite_process_ns;
@@ -95,6 +114,10 @@ module oup_phymodel (
             ST_REGREAD: begin
                 nextstate = regread_process_ns;
             end
+            ST_RECEIVE: begin
+                nextstate = receive_process_ns;
+            end
+            default: nextstate = ST_NOOP;
         endcase
     end
 
@@ -106,6 +129,29 @@ module oup_phymodel (
             end
             default: begin end
         endcase
+    end
+
+    always@(state)
+    begin: transmit_process
+        if(state == ST_TRANSMIT) begin
+            $display("Entered transmit_process");
+            @(posedge clk_i);   // eventually make this delay variable
+            ulpi_nxt_o = 1;     // (for a delay, to set nxt = 0)
+            do begin
+                @(posedge clk_i);
+                //ulpi_nxt_o = |(3'$urandom(seed_i)); // 1/(2^3) chance of 0
+                // TODO: test the above
+                ulpi_nxt_o = '1;
+                if(ulpi_nxt_o) begin
+                    tx_usb_data[tx_usb_index] = ulpi_data_i;
+                    tx_usb_index += 1;
+                end
+            end while(!ulpi_stp_i);
+            ulpi_nxt_o ='0;
+            transmit_process_ns = ST_NOOP;
+        end
+        else
+            transmit_process_ns = ST_TRANSMIT;
     end
 
     always@(state)
@@ -164,6 +210,17 @@ module oup_phymodel (
             regread_process_ns = ST_REGREAD;
     end
 
+    always@(state)
+    begin: receive_process
+        // For now, this model only supports receiving from an IDLE state
+        if(state == ST_RECEIVE) begin
+            // TODO: code goes here
+            receive_process_ns = ST_NOOP;
+        end
+        else
+            receive_process_ns = ST_RECEIVE;
+    end
+
     always@(phyregs_shadow)
     begin: update_phyregs
         foreach(phyregs[i]) begin
@@ -177,6 +234,10 @@ module oup_phymodel (
     end
 
     task write_phyreg_shadow (input int address, input logic [7:0] value);
+        // Take the _S and _C masks and apply them to the base register.
+        // When this task gets called, only the set or the clear will happen at 
+        // once, because of the way the always block is simulated. So the order
+        // of setting and clearing doesn't matter.
         if(is_sr_register(address-1)) begin         //we're writing to a _S reg
             phyregs_shadow[address-1] |= value;
         end
@@ -186,15 +247,6 @@ module oup_phymodel (
         else begin                                  //we're writing straight
             phyregs_shadow[address] = value;
         end
-
-        // Take the _S and _C masks and apply them to the base register.
-        // When this task gets called, only the set or the clear will happen at 
-        // once, because of the way the always block is simulated. So the order
-        // of setting and clearing doesn't matter.
-        //phyregs_shadow[address]  |=  phyregs_shadow[address+1]; // apply _S mask
-        //phyregs_shadow[address]  &= ~phyregs_shadow[address+2]; // apply _C mask
-        //phyregs_shadow[address+1] =  '0;                        // clear _S mask
-        //phyregs_shadow[address+2] =  '0;                        // clear _C mask
     endtask
 
     task reset_phyregs();
@@ -224,6 +276,12 @@ module oup_phymodel (
         phyregs_shadow[int'(TX_NEG_WIDTH_W)]    = 8'h20;
         phyregs_shadow[int'(RX_POL_RECOVERY)]   = 8'h02;
         phyregs_shadow[int'(EXTENDED_REG)]      = 8'h00;
+    endtask
+
+    task generate_fake_usb_data(int seed);
+        foreach(fake_usb_data[i]) begin
+            fake_usb_data[i] = 8'($urandom(seed));
+        end
     endtask
 
     function logic is_sr_register(int address);

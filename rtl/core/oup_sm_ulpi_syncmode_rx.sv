@@ -23,8 +23,9 @@ module oup_sm_ulpi_syncmode_rx(
    output reg        rx_abort_o,       // RX machine asserts this to indicate the operation was aborted.
 
    // RX FIFO buffer
-   output      [7:0] rx_data_o,        // RX buffer data output
-   output reg        rx_data_next_o,   // Loads next word on data buffer
+   output reg  [7:0] rx_data_o,        // RX buffer data output
+   output reg        rx_data_active_o, // Indicates we are receiving RX data
+   output reg        rx_data_valid_o,  // Loads next word on data buffer
    input             rx_data_full_i,   // Indicates when buffer is full
 
    // phyreg register
@@ -97,36 +98,42 @@ module oup_sm_ulpi_syncmode_rx(
                                                    // a _next signal exists to control latching down the pipeline.
          case(state)
             IDLE: begin
-               rx_done_o      = '1;
-               rx_abort_o     = '0;
-               rx_data_next_o = '0;
+               rx_done_o         = '1;
+               rx_abort_o        = '0;
+               rx_data_active_o  = '0;
+               rx_data_valid_o     = '0;
             end
             REGR_DATA: begin
                if(ulpi_dir_i) begin
-                  phyreg_o       = ulpi_data_i;    // latch the PHYREG data
-                  rx_done_o      = '0;
-                  rx_abort_o     = '0;
-                  rx_data_next_o = '0;
+                  phyreg_o          = ulpi_data_i; // latch the PHYREG data
+                  rx_done_o         = '0;
+                  rx_abort_o        = '0;
+                  rx_data_active_o  = '0;
+                  rx_data_valid_o     = '0;
                end
                else begin                          // should never happen but...
-                  rx_done_o      = '0;
-                  rx_abort_o     = '1;
-                  rx_data_next_o = '0;
+                  rx_done_o         = '0;
+                  rx_abort_o        = '1;
+                  rx_data_active_o  = '0;
+                  rx_data_valid_o     = '0;
                end
             end
             RECEIVING, RECEIVING_ABORT: begin
                rx_done_o      = '0;
                rx_abort_o     = (state == RECEIVING_ABORT);
                if(ulpi_dir_i) begin                // it's not a turnaround; read the ULPI bus
+                  rx_data_active_o    = '1;
                   if(!ulpi_nxt_i) begin            // it's an RX CMD
                      rxcmdreg_o = ulpi_data_i;     // latch the RX CMD
-                     rx_data_next_o = '0;
+                     rx_data_valid_o  = '0;
                   end
                   else                             // it's USB data; 
-                     rx_data_next_o = '1;          // enable latching down the pipeline.
+                     rx_data_valid_o  = '1;          // enable latching down the pipeline.
                end
-               else                                // it's a turnaround; ignore everything
-                     rx_data_next_o = '0;
+               else begin                          // it's a turnaround; ignore everything
+                     rx_data_active_o = '0;
+                     rx_data_valid_o  = '0;
+               end
             end
          endcase
       end

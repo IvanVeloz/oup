@@ -18,11 +18,12 @@ module oup_sm_ulpi_syncmode(
    output            exec_done_o,      // This is asserted when instruction execution is done.
    output            exec_aborted_o,   // This is asserted when the instruction execution was aborted by a read operation.
    input       [7:0] tx_data_i,        // Data to be transmitted to USB. Comes from a FIFO.
-   output            tx_data_next_o,   // 
-   input             tx_data_empty_i,  // Indicates FIFO is empty
+   output            tx_data_ready_o,  // Indicates ready to latch the next byte on tx_data_i.
+   input             tx_data_stop_i,   // Assert to stop the transmission.
+   input             tx_data_abort_i,  // Assert to send an USB 1.1 abort.
    output      [7:0] rx_data_o,        // Data received from USB. Goes into a FIFO.
-   output            rx_data_next_o,   // 
-   input             rx_data_full_i,   // TODO: implement. Indicates FIFO is full.
+   output            rx_data_active_o, // Indicates RX data receive is active.
+   output            rx_data_valid_o,  // Indicates this RX data byte is valid.
    output      [7:0] rx_cmd_byte_o,    // Defined in table 7 of standard.
    input       [7:0] phyreg_i,         // Data input for ULPI register writes
    input       [7:0] phyreg_addr_i,    // Address input for ULPI register writes
@@ -51,8 +52,8 @@ module oup_sm_ulpi_syncmode(
       .exec_ready_o(exec_done_o),
       .exec_aborted_o(exec_aborted_o),
       .tx_data_i(tx_data_i[7:0]),
-      .tx_data_next_o(tx_data_next_o),
-      .tx_data_empty_i(tx_data_empty_i),
+      .tx_data_next_o(tx_data_ready_o),
+      .tx_data_empty_i(tx_data_stop_i),
       .phyreg_i(phyreg_i[7:0]),
       .phyreg_addr_i(phyreg_addr_i[7:0]),
       .phyreg_addr_o(phyreg_addr_o[7:0]),
@@ -72,8 +73,9 @@ module oup_sm_ulpi_syncmode(
       .rx_done_o(rx_done),
       .rx_abort_o(rx_abort),
       .rx_data_o(rx_data_o[7:0]),
-      .rx_data_next_o(rx_data_next_o),
-      .rx_data_full_i(rx_data_full_i),
+      .rx_data_active_o(rx_data_active_o),
+      .rx_data_valid_o(rx_data_valid_o),
+      .rx_data_full_i(),
       .phyreg_o(phyreg_o[7:0]),
       .rxcmdreg_o(rx_cmd_byte_o[7:0])
    );

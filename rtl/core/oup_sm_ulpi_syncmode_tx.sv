@@ -109,6 +109,8 @@ module oup_sm_ulpi_syncmode_tx(
    instruction_union_t instruction_r = '0;   // Instruction register. Updated at ulpi_clk_i negedge only if idling.
    tx_states_t state = IDLE, nextstate;
 
+   logic tx_data_reg;                  // 
+
    always@(negedge ulpi_clk_i)
    begin: state_latch
       if(rst_i)
